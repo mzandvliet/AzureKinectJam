@@ -1,0 +1,10 @@
+*.csproj
+*.sln
+
+Library/
+obj/
+Temp/
+
+Assets/Editor/Image Effects/
+Assets/Standard Assets/
+.vscode/
