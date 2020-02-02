@@ -4,8 +4,12 @@ using Unity.Burst;
 using Unity.Jobs;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Collections;
+using Unity.Mathematics;
 
 /*
+    Based on this sample code from the SDK:
+    https://github.com/microsoft/Azure-Kinect-Samples/blob/master/build2019/csharp/1 - AcquiringImages/MainWindow.xaml.cs
+
 
     !!!IMPORTANT USAGE NOTE!!!
 
@@ -22,6 +26,7 @@ using Unity.Collections;
     move it to the AzureKinect folder in Plugins. Not great, but it works for
     now...
 
+    --
 
     Todo: 
     
@@ -30,26 +35,21 @@ using Unity.Collections;
     Can run in a TaskThread like the example does. Could edit
     SDK so it can run as a Burst thread that writes data
     directly into Unity texture memory?
-
-
 */
 
 public class BasicKinectDataTest : MonoBehaviour {
     private Device _device;
-    private Texture2D _depthTex;
-    private Texture2D _colorTex;
+    Image _transformedDepth;
     private Transformation _depthTransformer;
 
-    private int _colorWidth;
-    private int _colorHeight;
+    private int2 _colorDims;
+    private int2 _depthDims;
+
+    private Texture2D _depthTex;
+    private Texture2D _colorTex;
 
     private void Awake() {
-        // string unsafeLibPath = "E:\\code\\unity\\KinectJam\\Library\\PackageCache\\com.unity.collections@0.5.1-preview.11\\System.Runtime.CompilerServices.Unsafe.dll";
-        // if (System.IO.File.Exists(unsafeLibPath)) {
-        //     Assembly.Load(unsafeLibPath);
-        // } else {
-        //     Debug.LogFormat("Path {0} does not exist", unsafeLibPath);
-        // }
+        Application.targetFrameRate = 120;
 
         _device = Device.Open(0);
 
@@ -57,225 +57,132 @@ public class BasicKinectDataTest : MonoBehaviour {
         {
             ColorFormat = ImageFormat.ColorBGRA32,
             ColorResolution = ColorResolution.R720p,
-            DepthMode = DepthMode.WFOV_2x2Binned,
-            SynchronizedImagesOnly = true,
+            DepthMode = DepthMode.WFOV_2x2Binned, // Note: makes a large difference in latency!
+            SynchronizedImagesOnly = true, // Todo: might make interaction faster if we allow desync
             CameraFPS = FPS.FPS30,
         });
 
         var calibration = _device.GetCalibration();
-        _colorWidth = calibration.ColorCameraCalibration.ResolutionWidth;
-        _colorHeight = calibration.ColorCameraCalibration.ResolutionHeight;
+        _colorDims = new int2(
+            calibration.ColorCameraCalibration.ResolutionWidth,
+            calibration.ColorCameraCalibration.ResolutionHeight
+        );
+        _depthDims = new int2(
+            calibration.DepthCameraCalibration.ResolutionWidth,
+            calibration.DepthCameraCalibration.ResolutionHeight
+        );
 
-        _depthTex = new Texture2D(_colorWidth, _colorHeight, TextureFormat.R16, false, true);
-        _colorTex = new Texture2D(_colorWidth, _colorHeight, TextureFormat.RGBA32, false, true);
-
+        _transformedDepth = new Image(
+            ImageFormat.Depth16,
+            _colorDims.x, _colorDims.y, _colorDims.x * sizeof(System.UInt16));
         _depthTransformer = calibration.CreateTransformation();
 
+        _colorTex = new Texture2D(_colorDims.x, _colorDims.y, TextureFormat.RGBA32, false, true);
+        _depthTex = new Texture2D(_colorDims.x, _colorDims.y, TextureFormat.R16, false, true);
+
+        Capture();
+
         _captureWatch = new System.Diagnostics.Stopwatch();
+        _captureWatch.Start();
     }
 
     private void OnDestroy() {
         _device.Dispose();
+        _transformedDepth.Dispose();
     }
 
     System.Diagnostics.Stopwatch _captureWatch;
 
     private void Update() {
         if (_captureWatch.IsRunning) {
-            if (_captureWatch.ElapsedMilliseconds >= 1000 / 30) {
-                _captureWatch.Reset();
+            // Call the blocking Capture call a little bit before we expect a new frame to arrive
+            const int kinectFrameMillis = (1000 / 30);
+            const int unityFrameMillis = (1000 / 120);
+            if (_captureWatch.ElapsedMilliseconds >= kinectFrameMillis - unityFrameMillis * 2) {
+                Capture();
+                _captureWatch.Restart();
             }
-        } else {
-            Capture();
-            _captureWatch.Start();
         }
     }
 
     private void OnGUI() {
-        GUI.DrawTexture(new Rect(0f, 0f, _colorWidth, _colorHeight), _colorTex, ScaleMode.ScaleToFit);
+        float scale = 512f;
+        GUI.DrawTexture(new Rect(0f, 0f, scale, scale), _colorTex, ScaleMode.ScaleToFit);
+        GUI.DrawTexture(new Rect(scale, 0f, scale, scale), _depthTex, ScaleMode.ScaleToFit);
     }
-
-    /*
-    Todo: Try to use this interal method!
-
-    /// <summary>
-        /// Gets a native pointer to the underlying memory.
-        /// </summary>
-        /// <remarks>
-        /// This property may only be accessed by unsafe code.
-        ///
-        /// This returns an unsafe pointer to the image's memory. It is important that the
-        /// caller ensures the Image is not Disposed or garbage collected while this pointer is
-        /// in use, since it may become invalid when the Image is disposed or finalized.
-        ///
-        /// If this method needs to be used in a context where the caller cannot guarantee that the
-        /// Image will be disposed by another thread, the caller can call <see cref="Reference"/>
-        /// to create a duplicate reference to the Image which can be disposed separately.
-        ///
-        /// For safe buffer access <see cref="Memory"/>.
-        /// </remarks>
-        /// <returns>A pointer to the native buffer.</returns>
-        internal unsafe void* GetUnsafeBuffer()
-        {
-            if (this.buffer != IntPtr.Zero)
-            {
-                if (this.disposedValue)
-                {
-                    throw new ObjectDisposedException(nameof(Image));
-                }
-
-                return (void*)this.buffer;
-            }
-
-            lock (this)
-            {
-                if (this.disposedValue)
-                {
-                    throw new ObjectDisposedException(nameof(Image));
-                }
-
-                this.buffer = NativeMethods.k4a_image_get_buffer(this.handle);
-                if (this.buffer == IntPtr.Zero)
-                {
-                    throw new AzureKinectException("Image has NULL buffer");
-                }
-
-                return (void*)this.buffer;
-            }
-        }
-
-        Or from Transformation.cs
-
-         using (Image pointCloudReference = pointCloud.Reference())
-                {
-                    // Ensure changes made to the managed memory are visible to the native layer
-                    depthReference.FlushMemory();
-
-                    AzureKinectException.ThrowIfNotSuccess(() => NativeMethods.k4a_transformation_depth_image_to_point_cloud(
-                        this.handle,
-                        depthReference.DangerousGetHandle(),
-                        camera,
-                        pointCloudReference.DangerousGetHandle()));
-
-                    // Copy the native memory back to managed memory if required
-                    pointCloudReference.InvalidateMemory();
-                }
-
-
-        https://forum.unity.com/threads/nativearrayunsafeutility-convertexistingdatatonativearray.693775/
-        
-        The length param for this function is in number of elements, not bytes
-
-        https://forum.unity.com/threads/mesh-improvements.684688/
-        
-        Allocator.Invalid ?
-        AtomicSafetyHandle!!
-        
-    */
 
     private unsafe void Capture() {
         Capture capture = _device.GetCapture();
+        
+        _depthTransformer.DepthImageToColorCamera(capture, _transformedDepth);
 
-        // _depthTransformer.DepthImageToColorCamera(capture); // Todo: needs to write to _transformedDepth Image?
+        var colorPin = capture.Color.Memory.Pin();
+        var depthPin = _transformedDepth.Memory.Pin();
 
-        // var colorPixelMemory = capture.Color.GetPixels<BGRA>().Span;
-        // var colorPixelMemory = capture.Color.Memory;
-        // var depthPixels = capture.Depth.GetPixels<ushort>().Span;
+        var colorInput = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<BGRA>(colorPin.Pointer, _colorDims.x * _colorDims.y, Allocator.None);
+        var depthInput = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<ushort>(depthPin.Pointer, _colorDims.x * _colorDims.y, Allocator.None);
 
-        // capture.Color.FlushMemory();
-
-        // var pin = capture.Color.Memory.Pin();
-        void* unsafeBuffer = capture.Color.GetUnsafeBuffer();
-
-
-        // ulong gcHandle;
-        // var addr = UnsafeUtility.PinGCObjectAndGetAddress(capture.Color.Memory, out gcHandle);
-
-        // (int)capture.Color.Size
-        var colorInput = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<BGRA>(unsafeBuffer, _colorWidth * _colorHeight, Allocator.None);
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-        var safetyHandle = AtomicSafetyHandle.Create();
-        NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref colorInput, safetyHandle);
+        var colorSafetyHandle = AtomicSafetyHandle.Create();
+        var depthSafetyHandle = AtomicSafetyHandle.Create();
+        NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref colorInput, colorSafetyHandle);
+        NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref depthInput, depthSafetyHandle);
 #endif
 
         var colorOutput = _colorTex.GetRawTextureData<Color32>();
+        var depthOutput = _depthTex.GetRawTextureData<ushort>();
 
         var job = new ConvertColorDataJob
         {
-            colorBGRA = colorInput,
-            colorRGBA = colorOutput
+            dims = _colorDims,
+            colorIn = colorInput,
+            depthIn = depthInput,
+            depthOut =  depthOutput,
+            colorOut = colorOutput
         };
         job.Schedule(colorInput.Length, 64).Complete();
 
-        // pin.Dispose();
-        // UnsafeUtility.ReleaseGCObject(gcHandle);
-
-        // for (int i = 0; i < _colorWidth * _colorHeight; i++) {
-        // The output image will be the same as the input color image,
-        // but colorized with Red where there is no depth data, and Green
-        // where there is depth data at more than 1.5 meters
-
-        // Color32 c = Convert(colorPixels[i]);
-        // Color c = Convert(colorPixels[i]);
-
-        // if (depthPixels[i] == 0) {
-        //     c.r = 255;
-        // } else if (depthPixels[i] > 1500) {
-        //     c.g = 255;
-        // }
-
-        // colorData[i] = c;
-
-        // Color c = new Color(0.12f, 0.23f, 0.88f, 1f);
-        // _colorTex.SetPixel(i % _colorWidth, _colorHeight - i / _colorWidth, c);
-        // }
-
         _colorTex.Apply(true);
+        _depthTex.Apply(true);
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
-        AtomicSafetyHandle.Release(safetyHandle);
+        AtomicSafetyHandle.Release(colorSafetyHandle);
+        AtomicSafetyHandle.Release(depthSafetyHandle);
 #endif
-    }
 
+        colorPin.Dispose();
+        depthPin.Dispose();
+    }
 
     [BurstCompile]
     public struct ConvertColorDataJob : IJobParallelFor {
         [ReadOnly]
-        public NativeArray<BGRA> colorBGRA;
+        public int2 dims;
 
-        [WriteOnly]
-        public NativeArray<Color32> colorRGBA;
+        [ReadOnly]
+        public NativeArray<BGRA> colorIn;
+
+        [ReadOnly]
+        public NativeArray<ushort> depthIn;
+
+        [WriteOnly, NativeDisableParallelForRestriction]
+        public NativeArray<ushort> depthOut;
+
+        [WriteOnly, NativeDisableParallelForRestriction]
+        public NativeArray<Color32> colorOut;
 
         public void Execute(int i) {
-            colorRGBA[i] = Convert(colorBGRA[i]);
+            int x = i % dims.x;
+            int y = i / dims.x;
+            int iOut = (dims.y - 1 - y) * dims.x + x;
+
+            var c = Convert32(colorIn[i]);
+            var d = depthIn[i];
+
+            colorOut[iOut] = c;
+            depthOut[iOut] = d;
         }
     }
-
-    // private async void CaptureAsync() {
-    //     // Wait for a capture on a thread pool thread
-    //     using (Capture capture = await Task.Run(() => { return _device.GetCapture(); }).ConfigureAwait(true)) {
-    //         var colorPixels = capture.Color.GetPixels<BGRA>().Span;
-    //         var depthPixels = capture.Depth.GetPixels<ushort>().Span;
-
-    //         var colorBuffer = _outputColor.GetRawTextureData<Color32>();
-
-    //         for (int i = 0; i < colorBuffer.Length; i++) {
-    //             // The output image will be the same as the input color image,
-    //             // but colorized with Red where there is no depth data, and Green
-    //             // where there is depth data at more than 1.5 meters
-
-    //             Color32 c = Convert(colorPixels[i]);
-
-    //             if (depthPixels[i] == 0) {
-    //                 c.r = 255;
-    //             } else if (depthPixels[i] > 1500) {
-    //                 c.g = 255;
-    //             }
-
-    //             colorBuffer[i] = c;
-    //         }
-    //     }
-    // }
 
     private static Color32 Convert32(BGRA c) {
         return new Color32(
@@ -283,15 +190,6 @@ public class BasicKinectDataTest : MonoBehaviour {
             c.G,
             c.B,
             c.A
-        );
-    }
-
-    private static Color Convert(BGRA c) {
-        return new Color(
-            c.R / 255f,
-            c.G / 255f,
-            c.B / 255f,
-            c.A / 255f
         );
     }
 }
