@@ -1,7 +1,5 @@
 ﻿using UnityEngine;
 using Microsoft.Azure.Kinect.Sensor;
-using System.Threading.Tasks;
-using System.Reflection;
 using Unity.Burst;
 using Unity.Jobs;
 using Unity.Collections.LowLevel.Unsafe;
@@ -72,15 +70,24 @@ public class BasicKinectDataTest : MonoBehaviour {
         _colorTex = new Texture2D(_colorWidth, _colorHeight, TextureFormat.RGBA32, false, true);
 
         _depthTransformer = calibration.CreateTransformation();
+
+        _captureWatch = new System.Diagnostics.Stopwatch();
     }
 
     private void OnDestroy() {
         _device.Dispose();
     }
 
+    System.Diagnostics.Stopwatch _captureWatch;
+
     private void Update() {
-        if (Input.GetKeyDown(KeyCode.Space)) {
-            CaptureBlocking();
+        if (_captureWatch.IsRunning) {
+            if (_captureWatch.ElapsedMilliseconds >= 1000 / 30) {
+                _captureWatch.Reset();
+            }
+        } else {
+            Capture();
+            _captureWatch.Start();
         }
     }
 
@@ -88,23 +95,109 @@ public class BasicKinectDataTest : MonoBehaviour {
         GUI.DrawTexture(new Rect(0f, 0f, _colorWidth, _colorHeight), _colorTex, ScaleMode.ScaleToFit);
     }
 
-    private unsafe void CaptureBlocking() {
-        Debug.Log("Capturing frame...");
+    /*
+    Todo: Try to use this interal method!
 
+    /// <summary>
+        /// Gets a native pointer to the underlying memory.
+        /// </summary>
+        /// <remarks>
+        /// This property may only be accessed by unsafe code.
+        ///
+        /// This returns an unsafe pointer to the image's memory. It is important that the
+        /// caller ensures the Image is not Disposed or garbage collected while this pointer is
+        /// in use, since it may become invalid when the Image is disposed or finalized.
+        ///
+        /// If this method needs to be used in a context where the caller cannot guarantee that the
+        /// Image will be disposed by another thread, the caller can call <see cref="Reference"/>
+        /// to create a duplicate reference to the Image which can be disposed separately.
+        ///
+        /// For safe buffer access <see cref="Memory"/>.
+        /// </remarks>
+        /// <returns>A pointer to the native buffer.</returns>
+        internal unsafe void* GetUnsafeBuffer()
+        {
+            if (this.buffer != IntPtr.Zero)
+            {
+                if (this.disposedValue)
+                {
+                    throw new ObjectDisposedException(nameof(Image));
+                }
+
+                return (void*)this.buffer;
+            }
+
+            lock (this)
+            {
+                if (this.disposedValue)
+                {
+                    throw new ObjectDisposedException(nameof(Image));
+                }
+
+                this.buffer = NativeMethods.k4a_image_get_buffer(this.handle);
+                if (this.buffer == IntPtr.Zero)
+                {
+                    throw new AzureKinectException("Image has NULL buffer");
+                }
+
+                return (void*)this.buffer;
+            }
+        }
+
+        Or from Transformation.cs
+
+         using (Image pointCloudReference = pointCloud.Reference())
+                {
+                    // Ensure changes made to the managed memory are visible to the native layer
+                    depthReference.FlushMemory();
+
+                    AzureKinectException.ThrowIfNotSuccess(() => NativeMethods.k4a_transformation_depth_image_to_point_cloud(
+                        this.handle,
+                        depthReference.DangerousGetHandle(),
+                        camera,
+                        pointCloudReference.DangerousGetHandle()));
+
+                    // Copy the native memory back to managed memory if required
+                    pointCloudReference.InvalidateMemory();
+                }
+
+
+        https://forum.unity.com/threads/nativearrayunsafeutility-convertexistingdatatonativearray.693775/
+        
+        The length param for this function is in number of elements, not bytes
+
+        https://forum.unity.com/threads/mesh-improvements.684688/
+        
+        Allocator.Invalid ?
+        AtomicSafetyHandle!!
+        
+    */
+
+    private unsafe void Capture() {
         Capture capture = _device.GetCapture();
 
         // _depthTransformer.DepthImageToColorCamera(capture); // Todo: needs to write to _transformedDepth Image?
 
-        // var colorPixelMemory = capture.Color.GetPixels<BGRA>();
+        // var colorPixelMemory = capture.Color.GetPixels<BGRA>().Span;
         // var colorPixelMemory = capture.Color.Memory;
-        var pin = capture.Color.Memory.Pin();
         // var depthPixels = capture.Depth.GetPixels<ushort>().Span;
 
-        // var pin = colorPixelMemory.Pin();
-        // ulong gcHandle;
-        // var pin = UnsafeUtility.PinGCObjectAndGetAddress(colorPixelMemory, out gcHandle);
+        // capture.Color.FlushMemory();
 
-        var colorInput = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<BGRA>(pin.Pointer, _colorWidth * _colorHeight, Allocator.None);
+        // var pin = capture.Color.Memory.Pin();
+        void* unsafeBuffer = capture.Color.GetUnsafeBuffer();
+
+
+        // ulong gcHandle;
+        // var addr = UnsafeUtility.PinGCObjectAndGetAddress(capture.Color.Memory, out gcHandle);
+
+        // (int)capture.Color.Size
+        var colorInput = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<BGRA>(unsafeBuffer, _colorWidth * _colorHeight, Allocator.None);
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+        var safetyHandle = AtomicSafetyHandle.Create();
+        NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref colorInput, safetyHandle);
+#endif
+
         var colorOutput = _colorTex.GetRawTextureData<Color32>();
 
         var job = new ConvertColorDataJob
@@ -114,6 +207,7 @@ public class BasicKinectDataTest : MonoBehaviour {
         };
         job.Schedule(colorInput.Length, 64).Complete();
 
+        // pin.Dispose();
         // UnsafeUtility.ReleaseGCObject(gcHandle);
 
         // for (int i = 0; i < _colorWidth * _colorHeight; i++) {
@@ -137,6 +231,10 @@ public class BasicKinectDataTest : MonoBehaviour {
         // }
 
         _colorTex.Apply(true);
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+        AtomicSafetyHandle.Release(safetyHandle);
+#endif
     }
 
 
