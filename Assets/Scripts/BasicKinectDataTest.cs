@@ -95,11 +95,16 @@ public class BasicKinectDataTest : MonoBehaviour {
 
         // _depthTransformer.DepthImageToColorCamera(capture); // Todo: needs to write to _transformedDepth Image?
 
-        var colorPixelMemory = capture.Color.GetPixels<BGRA>();
+        // var colorPixelMemory = capture.Color.GetPixels<BGRA>();
+        // var colorPixelMemory = capture.Color.Memory;
+        var pin = capture.Color.Memory.Pin();
         // var depthPixels = capture.Depth.GetPixels<ushort>().Span;
 
-        var pin = colorPixelMemory.Pin();
-        var colorInput = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<BGRA>(pin.Pointer, colorPixelMemory.Length, Allocator.Temp);
+        // var pin = colorPixelMemory.Pin();
+        // ulong gcHandle;
+        // var pin = UnsafeUtility.PinGCObjectAndGetAddress(colorPixelMemory, out gcHandle);
+
+        var colorInput = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<BGRA>(pin.Pointer, _colorWidth * _colorHeight, Allocator.None);
         var colorOutput = _colorTex.GetRawTextureData<Color32>();
 
         var job = new ConvertColorDataJob
@@ -108,6 +113,8 @@ public class BasicKinectDataTest : MonoBehaviour {
             colorRGBA = colorOutput
         };
         job.Schedule(colorInput.Length, 64).Complete();
+
+        // UnsafeUtility.ReleaseGCObject(gcHandle);
 
         // for (int i = 0; i < _colorWidth * _colorHeight; i++) {
         // The output image will be the same as the input color image,
