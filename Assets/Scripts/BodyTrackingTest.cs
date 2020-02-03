@@ -16,10 +16,15 @@ using Unity.Collections.LowLevel.Unsafe;
 
 public class BodyTrackingTest : MonoBehaviour {
     private Device _device;
+    Image _transformedDepth;
+    Image _transformedSegment;
+    private Transformation _depthTransformer;
 
-    private int2 _dims;
+    private int2 _colorDims;
+    private int2 _depthDims;
 
     private Texture2D _segmentTex;
+    private Texture2D _colorTex;
 
     private Tracker _tracker;
 
@@ -30,19 +35,35 @@ public class BodyTrackingTest : MonoBehaviour {
 
         _device.StartCameras(new DeviceConfiguration
         {
-            ColorResolution = ColorResolution.Off,
+            ColorFormat = ImageFormat.ColorBGRA32,
+            ColorResolution = ColorResolution.R720p,
             DepthMode = DepthMode.WFOV_2x2Binned, // Note: makes a large difference in latency!
             SynchronizedImagesOnly = false,
             CameraFPS = FPS.FPS30,
         });
 
         var calibration = _device.GetCalibration();
-        _dims = new int2(
+        _colorDims = new int2(
+             calibration.ColorCameraCalibration.ResolutionWidth,
+             calibration.ColorCameraCalibration.ResolutionHeight
+         );
+        _depthDims = new int2(
             calibration.DepthCameraCalibration.ResolutionWidth,
             calibration.DepthCameraCalibration.ResolutionHeight
         );
 
-        _segmentTex = new Texture2D(_dims.x, _dims.y, TextureFormat.RGBA32, false, true);
+        _segmentTex = new Texture2D(_colorDims.x, _colorDims.y, TextureFormat.RGBA32, false, true);
+        _colorTex = new Texture2D(_colorDims.x, _colorDims.y, TextureFormat.RGBA32, false, true);
+
+        _transformedDepth = new Image(
+            ImageFormat.Depth16,
+            _colorDims.x, _colorDims.y, _colorDims.x * sizeof(System.UInt16));
+
+        _transformedSegment = new Image(
+            ImageFormat.Custom8,
+            _colorDims.x, _colorDims.y, _colorDims.x * sizeof(System.Byte));
+
+        _depthTransformer = calibration.CreateTransformation();
 
         _tracker = Tracker.Create(calibration, new TrackerConfiguration {
             SensorOrientation = SensorOrientation.Default,
@@ -58,6 +79,9 @@ public class BodyTrackingTest : MonoBehaviour {
 
     private void OnDestroy() {
         _device.Dispose();
+        _transformedDepth.Dispose();
+        _transformedSegment.Dispose();
+        _tracker.Dispose();
     }
 
     System.Diagnostics.Stopwatch _captureWatch;
@@ -76,7 +100,7 @@ public class BodyTrackingTest : MonoBehaviour {
 
     private void OnGUI() {
         float scale = 512f;
-        GUI.DrawTexture(new Rect(scale, 0f, scale, scale), _segmentTex, ScaleMode.ScaleToFit);
+        GUI.DrawTexture(new Rect(scale, 0f, scale, scale), _colorTex, ScaleMode.ScaleToFit);
 
         GUILayout.BeginVertical(GUI.skin.box);
         GUILayout.Label(string.Format("Number of bodies found: {0}", _numBodies));
@@ -99,46 +123,68 @@ public class BodyTrackingTest : MonoBehaviour {
         }
 
         _numBodies = frame.NumberOfBodies;
+
+        var palette = new NativeArray<Color32>(3, Allocator.TempJob);
+        palette[0] = new Color32(255, 0, 0, 255);
+        palette[1] = new Color32(0, 255, 0, 255);
+        palette[2] = new Color32(0, 0, 255, 255);
+
         if (_numBodies > 0) {
             uint bodyId = frame.GetBodyId(0);
             _skeleton = frame.GetBodySkeleton(0);
-
-            var palette = new NativeArray<Color32>(3, Allocator.TempJob);
-            palette[0] = new Color32(255, 0, 0, 255);
-            palette[1] = new Color32(0, 255, 0, 255);
-            palette[2] = new Color32(0, 0, 255, 255);
-
-            var bodyMapPin = frame.BodyIndexMap.Memory.Pin();
-            var bodyMapInput = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(bodyMapPin.Pointer, _dims.x * _dims.y, Allocator.None);
-
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            var bodyMapSafetyHandle = AtomicSafetyHandle.Create();
-            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref bodyMapInput, bodyMapSafetyHandle);
-#endif
-
-            var segmentOutput = _segmentTex.GetRawTextureData<Color32>();
-
-            var job = new ConvertSegmentMapToColorPreviewJob
-            {
-                dims = _dims,
-                backgroundIndex = Frame.BodyIndexMapBackground,
-                palette = palette,
-                segmentIn = bodyMapInput,
-                colorOut = segmentOutput
-            };
-            job.Schedule(bodyMapInput.Length, 64).Complete();
-
-            _segmentTex.Apply(true);
-
-#if ENABLE_UNITY_COLLECTIONS_CHECKS
-            AtomicSafetyHandle.Release(bodyMapSafetyHandle);
-#endif
-
-            bodyMapPin.Dispose();
-            palette.Dispose();
         }
 
+        /*
+        Todo: implement this:
+        https://microsoft.github.io/Azure-Kinect-Sensor-SDK/master/classk4a_1_1transformation_a72eaf319f56076237371651dc483603e.html#a72eaf319f56076237371651dc483603e
+        */
+        // _depthTransformer.DepthImageToColorCamera(frame.BodyIndexMap, _transformedSegment);
+        _depthTransformer.DepthImageToColorCameraCustom(
+            capture.Depth,
+            frame.BodyIndexMap,
+            _transformedDepth,
+            _transformedSegment);
+
+        var colorPin = capture.Color.Memory.Pin();
+        var bodyMapPin = _transformedSegment.Memory.Pin();
+        var colorInput = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<BGRA>(colorPin.Pointer, _colorDims.x * _colorDims.y, Allocator.None);
+        var bodyMapInput = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(bodyMapPin.Pointer, _colorDims.x * _colorDims.y, Allocator.None);
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+        var colorSafetyHandle = AtomicSafetyHandle.Create();
+        var bodyMapSafetyHandle = AtomicSafetyHandle.Create();
+        NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref bodyMapInput, bodyMapSafetyHandle);
+        NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref colorInput, colorSafetyHandle);
+#endif
+
+        var colorOutput = _colorTex.GetRawTextureData<Color32>();
+        var segmentOutput = _segmentTex.GetRawTextureData<Color32>();
+
+        var job = new ConvertSegmentMapToColorPreviewJob
+        {
+            dims = _colorDims,
+            backgroundIndex = Frame.BodyIndexMapBackground,
+            bodyPalette = palette,
+            colorIn = colorInput,
+            segmentIn = bodyMapInput,
+            segmentOut = segmentOutput,
+            colorOut = colorOutput
+        };
+        job.Schedule(bodyMapInput.Length, 64).Complete();
+
+        _segmentTex.Apply(true);
+        _colorTex.Apply(true);
+
+#if ENABLE_UNITY_COLLECTIONS_CHECKS
+        AtomicSafetyHandle.Release(bodyMapSafetyHandle);
+        AtomicSafetyHandle.Release(colorSafetyHandle);
+#endif
+        colorPin.Dispose();
+        bodyMapPin.Dispose();
+            
+
         frame.Dispose();
+        palette.Dispose();
     }
 
     [BurstCompile]
@@ -150,12 +196,17 @@ public class BodyTrackingTest : MonoBehaviour {
         public byte backgroundIndex;
 
         [ReadOnly]
-        public NativeArray<Color32> palette;
+        public NativeArray<Color32> bodyPalette;
+
+        [ReadOnly]
+        public NativeArray<BGRA> colorIn;
 
         [ReadOnly]
         public NativeArray<byte> segmentIn;
 
 
+        [WriteOnly, NativeDisableParallelForRestriction]
+        public NativeArray<Color32> segmentOut;
         [WriteOnly, NativeDisableParallelForRestriction]
         public NativeArray<Color32> colorOut;
 
@@ -164,16 +215,28 @@ public class BodyTrackingTest : MonoBehaviour {
             int y = iIn / dims.x;
             int iOut = (dims.y - 1 - y) * dims.x + x;
 
-            var c = new Color32(0,0,0,255);
+            var depthColor = new Color32(0,0,0,255);
+            var color = new Color32(0, 0, 0, 255);
             if (segmentIn[iIn] != backgroundIndex) {
-                c = Convert32(segmentIn[iIn], palette);
+                depthColor = GetPalette(segmentIn[iIn], bodyPalette);
+                color = Convert32(colorIn[iIn]);
             }
 
-            colorOut[iOut] = c;
+            segmentOut[iOut] = depthColor;
+            colorOut[iOut] = color;
         }
     }
 
-    private static Color32 Convert32(ushort value, NativeArray<Color32> palette) {
+    private static Color32 GetPalette(ushort value, NativeArray<Color32> palette) {
         return palette[value % palette.Length];
+    }
+
+    private static Color32 Convert32(BGRA c) {
+        return new Color32(
+            c.R,
+            c.G,
+            c.B,
+            c.A
+        );
     }
 }

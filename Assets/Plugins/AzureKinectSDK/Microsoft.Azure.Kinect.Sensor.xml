@@ -2096,6 +2096,19 @@
             of the pixel format of the depth image.
             </remarks>
         </member>
+        <member name="M:Microsoft.Azure.Kinect.Sensor.Transformation.DepthImageToColorCameraCustom(Microsoft.Azure.Kinect.Sensor.Image,Microsoft.Azure.Kinect.Sensor.Image,Microsoft.Azure.Kinect.Sensor.Image,Microsoft.Azure.Kinect.Sensor.Image)">
+            <summary>
+            Transforms an Image from the depth camera perspective to the color camera perspective.
+            </summary>
+            <param name="depth">Depth image to transform.</param>
+            <param name="custom">Custom image to transform along with depth.</param>
+            <param name="transformedDepth">An Image to hold the output.</param>
+            <param name="transformedCustom">An Image to hold the custom output.</param>
+            <remarks>
+            The <paramref name="transformedDepth"/> Image must be of the resolution of the color camera, and
+            of the pixel format of the depth image.
+            </remarks>
+        </member>
         <member name="M:Microsoft.Azure.Kinect.Sensor.Transformation.ColorImageToDepthCamera(Microsoft.Azure.Kinect.Sensor.Capture)">
             <summary>
             Transforms an Image from the color camera perspective to the depth camera perspective.
