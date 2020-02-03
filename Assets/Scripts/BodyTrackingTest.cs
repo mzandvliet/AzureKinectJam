@@ -35,10 +35,10 @@ public class BodyTrackingTest : MonoBehaviour {
 
         _device.StartCameras(new DeviceConfiguration
         {
-            ColorFormat = ImageFormat.ColorBGRA32,
+            ColorFormat = ImageFormat.ColorBGRA32, // Note: other formats would be hardware-native, faster
             ColorResolution = ColorResolution.R720p,
             DepthMode = DepthMode.WFOV_2x2Binned, // Note: makes a large difference in latency!
-            SynchronizedImagesOnly = false,
+            SynchronizedImagesOnly = true,
             CameraFPS = FPS.FPS30,
         });
 
@@ -99,8 +99,7 @@ public class BodyTrackingTest : MonoBehaviour {
     }
 
     private void OnGUI() {
-        float scale = 512f;
-        GUI.DrawTexture(new Rect(scale, 0f, scale, scale), _colorTex, ScaleMode.ScaleToFit);
+        GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), _colorTex, ScaleMode.ScaleToFit);
 
         GUILayout.BeginVertical(GUI.skin.box);
         GUILayout.Label(string.Format("Number of bodies found: {0}", _numBodies));
@@ -134,11 +133,6 @@ public class BodyTrackingTest : MonoBehaviour {
             _skeleton = frame.GetBodySkeleton(0);
         }
 
-        /*
-        Todo: implement this:
-        https://microsoft.github.io/Azure-Kinect-Sensor-SDK/master/classk4a_1_1transformation_a72eaf319f56076237371651dc483603e.html#a72eaf319f56076237371651dc483603e
-        */
-        // _depthTransformer.DepthImageToColorCamera(frame.BodyIndexMap, _transformedSegment);
         _depthTransformer.DepthImageToColorCameraCustom(
             capture.Depth,
             frame.BodyIndexMap,
@@ -179,9 +173,9 @@ public class BodyTrackingTest : MonoBehaviour {
         AtomicSafetyHandle.Release(bodyMapSafetyHandle);
         AtomicSafetyHandle.Release(colorSafetyHandle);
 #endif
+
         colorPin.Dispose();
         bodyMapPin.Dispose();
-            
 
         frame.Dispose();
         palette.Dispose();
@@ -213,21 +207,24 @@ public class BodyTrackingTest : MonoBehaviour {
         public void Execute(int iIn) {
             int x = iIn % dims.x;
             int y = iIn / dims.x;
-            int iOut = (dims.y - 1 - y) * dims.x + x;
+
+            // HACK: read offset applied to segmentation map, as the data returned by Tranformation is off?
+            int sIn = y * dims.x + (math.min(x + 16, dims.x-1));
 
             var depthColor = new Color32(0,0,0,255);
             var color = new Color32(0, 0, 0, 255);
-            if (segmentIn[iIn] != backgroundIndex) {
-                depthColor = GetPalette(segmentIn[iIn], bodyPalette);
+            if (segmentIn[sIn] != backgroundIndex) {
+                depthColor = GetPaletted(segmentIn[sIn], bodyPalette);
                 color = Convert32(colorIn[iIn]);
             }
 
+            int iOut = (dims.y - 1 - y) * dims.x + x;
             segmentOut[iOut] = depthColor;
             colorOut[iOut] = color;
         }
     }
 
-    private static Color32 GetPalette(ushort value, NativeArray<Color32> palette) {
+    private static Color32 GetPaletted(ushort value, NativeArray<Color32> palette) {
         return palette[value % palette.Length];
     }
 
