@@ -6,6 +6,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Collections;
 using Unity.Mathematics;
 
+
 /*
     Based on this sample code from the SDK:
     https://github.com/microsoft/Azure-Kinect-Samples/blob/master/build2019/csharp/1 - AcquiringImages/MainWindow.xaml.cs
@@ -78,7 +79,7 @@ public class BasicKinectDataTest : MonoBehaviour {
         _depthTransformer = calibration.CreateTransformation();
 
         _colorTex = new Texture2D(_colorDims.x, _colorDims.y, TextureFormat.RGBA32, false, true);
-        _depthTex = new Texture2D(_colorDims.x, _colorDims.y, TextureFormat.R16, false, true);
+        _depthTex = new Texture2D(_colorDims.x, _colorDims.y, TextureFormat.RFloat, false, true);
 
         Capture();
 

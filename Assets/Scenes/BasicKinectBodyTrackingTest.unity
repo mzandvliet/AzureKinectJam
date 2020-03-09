@@ -131,6 +131,7 @@ GameObject:
   m_Component:
   - component: {fileID: 596038687}
   - component: {fileID: 596038686}
+  - component: {fileID: 596038688}
   m_Layer: 0
   m_Name: Application
   m_TagString: Untagged
@@ -150,6 +151,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5fdfcd71ed419974992a823f7fa5b2dc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _material: {fileID: 2100000, guid: 76b8ed6dcf351f84c84b715ce06422c5, type: 2}
 --- !u!4 &596038687
 Transform:
   m_ObjectHideFlags: 0
@@ -164,6 +166,49 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &596038688
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 596038685}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 210d8348e88bdfd499d152a7a14a9386, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_recorder:
+    m_settings:
+      outputPath: Output/Output.abc
+      conf:
+        archiveType: 0
+        timeSamplingType: 0
+        frameRate: 30
+        xformType: 1
+        swapHandedness:
+          v: 1
+        swapFaces:
+          v: 0
+        scaleFactor: 100
+      scope: 0
+      targetBranch: {fileID: 0}
+      fixDeltaTime: 1
+      assumeNonSkinnedMeshesAreConstant: 1
+      captureMeshRenderer: 1
+      captureSkinnedMeshRenderer: 1
+      captureParticleSystem: 1
+      captureCamera: 1
+      meshNormals: 1
+      meshUV0: 1
+      meshUV1: 1
+      meshColors: 1
+      meshSubmeshes: 1
+      detailedLog: 1
+      debugLog: 0
+  m_captureOnStart: 1
+  m_ignoreFirstFrame: 1
+  m_maxCaptureFrame: 0
 --- !u!1 &1291259115
 GameObject:
   m_ObjectHideFlags: 0
@@ -291,8 +336,8 @@ Camera:
   m_GameObject: {fileID: 1748907972}
   m_Enabled: 1
   serializedVersion: 2
-  m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_ClearFlags: 2
+  m_BackGroundColor: {r: 0.35575047, g: 0.4745098, b: 0.19215688, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -305,8 +350,8 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
-  far clip plane: 1000
+  near clip plane: 0.01
+  far clip plane: 200
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -332,10 +377,10 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1748907972}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalRotation: {x: 0.10353258, y: -0.17217417, z: 0.018169822, w: 0.9794422}
+  m_LocalPosition: {x: 12.05842, y: 4.8916225, z: 5.656496}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 14.203001, y: 23.052002, z: 0}
