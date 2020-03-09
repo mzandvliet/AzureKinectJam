@@ -318,7 +318,7 @@ public class BodyTrackingTest : MonoBehaviour {
                     if (depth == 0) {
                         depthOut[iOut] = 32f;
                     } else {
-                        depthOut[iOut] = (float)depth / 50f;
+                        depthOut[iOut] = (float)depth / 100f;
                     }
                     
 
