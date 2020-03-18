@@ -11,6 +11,17 @@ using UTJ.Alembic;
 using ReadOnly = Unity.Collections.ReadOnlyAttribute;
 
 /*
+    Todo:
+
+    Now that we've gotten alembic up and running, wouldn't it be cool
+    if we could fit Bezier mesh structures to actors, and then directly
+    encode those bezier shapes into the alembic format? Blender could
+    tessellate those however it wants to.
+
+    We're generating a heck of a lot of data each frame...
+
+    ---
+
     The Body tracking API uses a neural network model running on CUDA:
     dnn_model_2_0
 
@@ -311,20 +322,12 @@ public class BodyTrackingTest : MonoBehaviour {
                     colorOut[iOut] = Convert32(colorIn[iIn]);
 
                     ushort depth = depthIn[iIn];
-                    // ushort depth = (ushort)(depthIn[iIn] >> 8);
-                    // ushort depth = (ushort)(depthIn[iIn] & 0x000000FF);
-                    // ushort depth = (ushort)((depthIn[iIn] << 8) | ((depthIn[iIn] >> 8) & 0x000000FF));
 
                     if (depth == 0) {
                         depthOut[iOut] = 32f;
                     } else {
                         depthOut[iOut] = (float)depth / 100f;
                     }
-                    
-
-                    // byte debugDepth = (byte)(depth >> 8);
-                    // byte debugDepth = (byte)(depth / (1000f));
-                    // colorOut[iOut] = new Color32(debugDepth, debugDepth, debugDepth, 255);
                 }
             }
         }
