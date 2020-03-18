@@ -173,7 +173,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 596038685}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 210d8348e88bdfd499d152a7a14a9386, type: 3}
   m_Name: 
@@ -182,7 +182,7 @@ MonoBehaviour:
     m_settings:
       outputPath: Output/Output.abc
       conf:
-        archiveType: 0
+        archiveType: 1
         timeSamplingType: 0
         frameRate: 30
         xformType: 1
@@ -190,20 +190,20 @@ MonoBehaviour:
           v: 1
         swapFaces:
           v: 0
-        scaleFactor: 100
+        scaleFactor: 1
       scope: 0
-      targetBranch: {fileID: 0}
+      targetBranch: {fileID: 596038685}
       fixDeltaTime: 1
-      assumeNonSkinnedMeshesAreConstant: 1
+      assumeNonSkinnedMeshesAreConstant: 0
       captureMeshRenderer: 1
-      captureSkinnedMeshRenderer: 1
-      captureParticleSystem: 1
-      captureCamera: 1
-      meshNormals: 1
+      captureSkinnedMeshRenderer: 0
+      captureParticleSystem: 0
+      captureCamera: 0
+      meshNormals: 0
       meshUV0: 1
-      meshUV1: 1
+      meshUV1: 0
       meshColors: 1
-      meshSubmeshes: 1
+      meshSubmeshes: 0
       detailedLog: 1
       debugLog: 0
   m_captureOnStart: 1
