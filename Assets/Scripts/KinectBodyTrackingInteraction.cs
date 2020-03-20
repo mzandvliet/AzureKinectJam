@@ -14,7 +14,7 @@ Todo:
 
 */
 
-public class BodyTrackingInteraction : MonoBehaviour {
+public class KinectBodyTrackingInteraction : MonoBehaviour {
     [SerializeField] private Transform _kinectTransform;
 
     private Device _device;
@@ -28,6 +28,8 @@ public class BodyTrackingInteraction : MonoBehaviour {
     private int _bufIdx;
 
     private UnitySkeleton _interpolatedSkeleton;    
+
+    private List<KinectButton> _buttons;
 
     private void Awake() {
         Application.targetFrameRate = 120;
@@ -62,6 +64,9 @@ public class BodyTrackingInteraction : MonoBehaviour {
         }
 
         _interpolatedSkeleton = new UnitySkeleton(Allocator.Persistent);
+        
+        var buttons = (KinectButton[])GameObject.FindObjectsOfTypeAll(typeof(KinectButton));
+        _buttons = new List<KinectButton>(buttons);
     }
 
     private void OnDestroy() {
@@ -94,7 +99,18 @@ public class BodyTrackingInteraction : MonoBehaviour {
             }
         }
 
-        Interpolate(_buffer[_bufIdx], _buffer[_bufIdx], _interpolatedSkeleton, 0.5f);
+        // Interpolate(_buffer[_bufIdx], _buffer[_bufIdx], _interpolatedSkeleton, 0.5f);
+        Interpolate(_interpolatedSkeleton, _buffer[_bufIdx], _interpolatedSkeleton, 4f * Time.deltaTime);
+
+        for (int i = 0; i < _buttons.Count; i++)
+        {
+            if (math.distance(_interpolatedSkeleton.bones[(int)JointId.HandLeft].position, _buttons[i].transform.position) < 0.25f) {
+                _buttons[i].OnTouch();
+            }
+            if (math.distance(_interpolatedSkeleton.bones[(int)JointId.HandRight].position, _buttons[i].transform.position) < 0.25f) {
+                _buttons[i].OnTouch();
+            }
+        }
     }
 
     private void OnGUI() {

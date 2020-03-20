@@ -28,7 +28,7 @@ using ReadOnly = Unity.Collections.ReadOnlyAttribute;
     It is crazy expensive to run, and introduces a lot of latency.
 */
 
-public class BodyTrackingTest : MonoBehaviour {
+public class KinectDataVisualizer : MonoBehaviour {
     [SerializeField] private Material _material;
 
     private Device _device;
