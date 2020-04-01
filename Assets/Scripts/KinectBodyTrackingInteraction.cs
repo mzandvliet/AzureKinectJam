@@ -4,6 +4,7 @@ using Microsoft.Azure.Kinect.BodyTracking;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine.Video;
 
 /*
 
@@ -16,6 +17,7 @@ Todo:
 
 public class KinectBodyTrackingInteraction : MonoBehaviour {
     [SerializeField] private Transform _kinectTransform;
+    [SerializeField] private VideoPlayer _videoPlayer;
 
     private Device _device;
     private int2 _colorDims;
@@ -106,6 +108,10 @@ public class KinectBodyTrackingInteraction : MonoBehaviour {
         {
             if (math.distance(_interpolatedSkeleton.bones[(int)JointId.HandLeft].position, _buttons[i].transform.position) < 0.25f) {
                 _buttons[i].OnTouch();
+                // if (!_videoPlayer.isPlaying) {
+                //     _videoPlayer.Play();
+                // }
+                _videoPlayer.playbackSpeed = 1f;
             }
             if (math.distance(_interpolatedSkeleton.bones[(int)JointId.HandRight].position, _buttons[i].transform.position) < 0.25f) {
                 _buttons[i].OnTouch();

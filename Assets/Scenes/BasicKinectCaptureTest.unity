@@ -163,7 +163,7 @@ MonoBehaviour:
           v: 1
         swapFaces:
           v: 0
-        scaleFactor: 100
+        scaleFactor: 1
       scope: 0
       targetBranch: {fileID: 0}
       fixDeltaTime: 1
@@ -175,7 +175,7 @@ MonoBehaviour:
       meshNormals: 0
       meshUV0: 0
       meshUV1: 0
-      meshColors: 0
+      meshColors: 1
       meshSubmeshes: 0
       detailedLog: 0
       debugLog: 0
