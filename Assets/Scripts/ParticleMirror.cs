@@ -74,6 +74,7 @@ public class ParticleMirror : MonoBehaviour {
 
         pos = _mirror.InverseTransformPoint(pos);
         pos.z *= -1f;
+        pos.x *= -1f;
         pos = _mirror.TransformPoint(pos);
 
         var vel = _rng.NextFloat3Direction() * 0.0001f;
