@@ -11,11 +11,11 @@ public class ParticleTrigger : MonoBehaviour {
 
     private void Awake() {
         _button = gameObject.GetComponent<KinectButton>();
-        _button.OnTouchEnter += OnTouchEnter;
+        // _button.OnTouchEnter += OnTouchEnter;
     }
     
     private void OnDestroy() {
-        _button.OnTouchEnter -= OnTouchEnter;
+        // _button.OnTouchEnter -= OnTouchEnter;
     }
 
     private void OnTouchEnter(KinectButton button, JointId bone) {
