@@ -2,24 +2,16 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using Microsoft.Azure.Kinect.BodyTracking;
 
 public class KinectButton : MonoBehaviour {
-    [SerializeField] private ParticleSystem _particlesA;
-    [SerializeField] private ParticleSystem _particlesB;
+    public event System.Action<KinectButton, JointId> OnTouchEnter;
 
-    private void Awake() {
-        
-    }
-    private void Update() {
-        
-    }
-
-    public void OnTouch() {
+    public void OnTouchEnter_Internal(JointId bone) {
         Debug.Log("Touched!");
 
-        _particlesA.Play();
-        _particlesB.Play();
-
-        gameObject.SetActive(false);
+        if (OnTouchEnter != null) {
+            OnTouchEnter(this, bone);
+        }
     }
 }

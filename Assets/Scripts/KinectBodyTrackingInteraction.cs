@@ -17,7 +17,6 @@ Todo:
 
 public class KinectBodyTrackingInteraction : MonoBehaviour {
     [SerializeField] private Transform _kinectTransform;
-    [SerializeField] private VideoPlayer _videoPlayer;
 
     private Device _device;
     private int2 _colorDims;
@@ -31,7 +30,9 @@ public class KinectBodyTrackingInteraction : MonoBehaviour {
 
     private UnitySkeleton _interpolatedSkeleton;    
 
-    private List<KinectButton> _buttons;
+    public UnitySkeleton InterpolatedSkeleton {
+        get => _interpolatedSkeleton;
+    }
 
     private void Awake() {
         Application.targetFrameRate = 120;
@@ -66,9 +67,6 @@ public class KinectBodyTrackingInteraction : MonoBehaviour {
         }
 
         _interpolatedSkeleton = new UnitySkeleton(Allocator.Persistent);
-        
-        var buttons = (KinectButton[])GameObject.FindObjectsOfTypeAll(typeof(KinectButton));
-        _buttons = new List<KinectButton>(buttons);
     }
 
     private void OnDestroy() {
@@ -103,20 +101,6 @@ public class KinectBodyTrackingInteraction : MonoBehaviour {
 
         // Interpolate(_buffer[_bufIdx], _buffer[_bufIdx], _interpolatedSkeleton, 0.5f);
         Interpolate(_interpolatedSkeleton, _buffer[_bufIdx], _interpolatedSkeleton, 4f * Time.deltaTime);
-
-        for (int i = 0; i < _buttons.Count; i++)
-        {
-            if (math.distance(_interpolatedSkeleton.bones[(int)JointId.HandLeft].position, _buttons[i].transform.position) < 0.25f) {
-                _buttons[i].OnTouch();
-                // if (!_videoPlayer.isPlaying) {
-                //     _videoPlayer.Play();
-                // }
-                _videoPlayer.playbackSpeed = 1f;
-            }
-            if (math.distance(_interpolatedSkeleton.bones[(int)JointId.HandRight].position, _buttons[i].transform.position) < 0.25f) {
-                _buttons[i].OnTouch();
-            }
-        }
     }
 
     private void OnGUI() {
@@ -261,7 +245,7 @@ public struct UnitySkeleton : System.IDisposable {
     }
 
     public void CopyFrom(Skeleton skeleton, Transform kinect, uint timestamp) {
-        const float mm2m = 0.01f; // When using 0.001, we get a dwarf. Do they mean cm?
+        const float mm2m = 0.001f; // When using 0.001, we get a dwarf. Do they mean cm?
 
         for (int i = 0; i < 32; i++) {
             var joint = skeleton.GetJoint(i);
